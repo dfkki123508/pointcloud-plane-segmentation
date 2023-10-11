@@ -4,22 +4,38 @@
 #endif
 #endif
 
-#include <chrono>
-#include <iostream>
-#include <limits>
-#include <memory>
-#include <set>
-#include <vector>
+#include <vtkActor.h>
+#include <vtkCellArray.h>
+#include <vtkNamedColors.h>
+#include <vtkNew.h>
+#include <vtkPoints.h>
+#include <vtkPolyData.h>
+#include <vtkPolyDataMapper.h>
+#include <vtkProperty.h>
+#include <vtkQuad.h>
+#include <vtkRenderWindow.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkRenderer.h>
 
 #include <Eigen/Dense>
-
-#include <rspd/planedetector.h>
-#include <rspd/geometryutils.h>
 
 #include <pcl/io/ply_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/features/normal_3d_omp.h>
+#include <pcl/visualization/pcl_visualizer.h>
+
+#include <chrono>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <set>
+#include <thread>
+
+#include <rspd/planedetector.h>
+#include <rspd/geometryutils.h>
+
+using namespace std::chrono_literals;
 
 template <typename PointT = pcl::PointNormal>
 typename pcl::PointCloud<PointT>::Ptr LoadPointCloud(const std::string &pcdfilepath)
@@ -32,12 +48,71 @@ typename pcl::PointCloud<PointT>::Ptr LoadPointCloud(const std::string &pcdfilep
     return points;
 }
 
-void CalcNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, double radius)
+void CalcNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, double radius, int nrNeighbors)
 {
     pcl::NormalEstimationOMP<pcl::PointNormal, pcl::PointNormal> ne;
     ne.setInputCloud(inputCloud);
-    ne.setRadiusSearch(radius);
+    // ne.setRadiusSearch(radius);
+    ne.setKSearch(nrNeighbors);
     ne.compute(*inputCloud);
+}
+
+void AddPlane(const Eigen::Vector3d &center, const Eigen::Vector3d &basisU, const Eigen::Vector3d &basisV, const std::array<double, 3> &color, vtkSmartPointer<vtkRenderer> renderer)
+{
+    // Create four points (must be in counter clockwise order)
+    Eigen::Vector3d p0 = center - basisU - basisV;
+    Eigen::Vector3d p1 = center - basisU + basisV;
+    Eigen::Vector3d p2 = center + basisU + basisV;
+    Eigen::Vector3d p3 = center + basisU - basisV;
+
+    // Add the points to a vtkPoints object
+    vtkNew<vtkPoints> points;
+    points->InsertNextPoint(p0.array().data());
+    points->InsertNextPoint(p1.array().data());
+    points->InsertNextPoint(p2.array().data());
+    points->InsertNextPoint(p3.array().data());
+
+    // Create a quad on the four points
+    vtkNew<vtkQuad> quad;
+    quad->GetPointIds()->SetId(0, 0);
+    quad->GetPointIds()->SetId(1, 1);
+    quad->GetPointIds()->SetId(2, 2);
+    quad->GetPointIds()->SetId(3, 3);
+
+    // Create a cell array to store the quad in
+    vtkNew<vtkCellArray> quads;
+    quads->InsertNextCell(quad);
+
+    // Create a polydata to store everything in
+    vtkNew<vtkPolyData> polydata;
+
+    // Add the points and quads to the dataset
+    polydata->SetPoints(points);
+    polydata->SetPolys(quads);
+
+    // Setup actor and mapper
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputData(polydata);
+
+    vtkNew<vtkActor> actor;
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetColor(color[0], color[1], color[2]);
+
+    renderer->AddActor(actor);
+}
+
+static constexpr std::array<std::array<double, 3>, 6> GetDefaultColorPalatte()
+{
+    // Colors (default MATLAB colors)
+    std::array<std::array<double, 3>, 6> colors = {{
+        {0.8500, 0.3250, 0.0980},
+        {0.9290, 0.6940, 0.1250},
+        {0.4940, 0.1840, 0.5560},
+        {0.4660, 0.6740, 0.1880},
+        {0.3010, 0.7450, 0.9330},
+        {0.6350, 0.0780, 0.1840}
+    }};
+    return colors;
 }
 
 // ----------------------------------------------------------------------------
@@ -45,7 +120,6 @@ void CalcNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, double radiu
 int main(int argc, char *argv[])
 {
 
-    // utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
     if (argc < 2)
     {
         std::cout << "Given args (" << argc << "):" << std::endl;
@@ -79,24 +153,34 @@ int main(int argc, char *argv[])
 
     static constexpr int nrNeighbors = 75;
 
-    auto cloud_ptr = LoadPointCloud(argv[1]);
+    //
+    // Load point cloud
+    //
 
+    auto cloud_ptr = LoadPointCloud(argv[1]);
     std::cout << "Loaded point cloud with " << cloud_ptr->size() << " points." << std::endl;
 
+    //
+    // Estimate normals
+    //
+
     auto t1 = std::chrono::high_resolution_clock::now();
-    CalcNormals(cloud_ptr, 0.25);
+    CalcNormals(cloud_ptr, 0.25, nrNeighbors);
     const double t_normals = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
     std::cout << "o3d EstimateNormals: " << t_normals << " seconds" << std::endl;
 
-    std::vector<std::vector<int>> neighbors;
-    neighbors.resize(cloud_ptr->size());
+    //
+    // KD tree search with pcl
+    //
 
-    // KD tree with pcl
     t1 = std::chrono::high_resolution_clock::now();
 
     std::cout << "Constructing kdtree..." << std::endl;
     pcl::KdTreeFLANN<pcl::PointNormal> kdtree;
     kdtree.setInputCloud(cloud_ptr);
+
+    std::vector<std::vector<int>> neighbors;
+    neighbors.resize(cloud_ptr->size());
 
     std::cout << "Finding neighbors..." << std::endl;
 #pragma omp parallel for schedule(static)
@@ -114,6 +198,10 @@ int main(int argc, char *argv[])
     const double t_kdtree = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
     std::cout << "kdtree search: " << t_kdtree << " seconds" << std::endl;
 
+    //
+    // Run RSPD aka PlaneDetector
+    //
+
     t1 = std::chrono::high_resolution_clock::now();
     PlaneDetector rspd(cloud_ptr, neighbors);
     rspd.minNormalDiff(std::cos(GeometryUtils::deg2rad(minNormalDiff)));
@@ -125,6 +213,11 @@ int main(int argc, char *argv[])
     std::cout << "rspd detect: " << t_rspd << " seconds" << std::endl;
     std::cout << std::endl;
 
+    //
+    // Print out the detected planes
+    //
+
+    std::cout << "==============================" << std::endl;
     std::cout << "Detected the following " << planes.size() << " planes:" << std::endl;
     for (const auto &p : planes)
     {
@@ -140,65 +233,38 @@ int main(int argc, char *argv[])
     std::cout << "EstimateNormals: " << t_normals << " seconds" << std::endl;
     std::cout << "DetectPlanarPatches: " << planes.size() << " in " << (t_rspd + t_kdtree) << " seconds" << std::endl;
 
-    //     //
-    //     // Visualization
-    //     //
+    //
+    // Visualization
+    //
 
-    //     // create a vector of geometries to visualize, starting with input point cloud
-    //     std::vector<std::shared_ptr<const geometry::Geometry>> geometries;
-    //     geometries.reserve(planes.size());
-    //     // geometries.push_back(cloud_ptr);
+    // Create a renderer, render window, and interactor
+    vtkNew<vtkRenderer> renderer;
+    vtkNew<vtkRenderWindow> renderWindow;
+    renderWindow->AddRenderer(renderer);
 
-    //     // Colors (default MATLAB colors)
-    //     std::vector<Eigen::Vector3d> colors;
-    //     colors.push_back(Eigen::Vector3d(0.8500, 0.3250, 0.0980));
-    //     colors.push_back(Eigen::Vector3d(0.9290, 0.6940, 0.1250));
-    //     colors.push_back(Eigen::Vector3d(0.4940, 0.1840, 0.5560));
-    //     colors.push_back(Eigen::Vector3d(0.4660, 0.6740, 0.1880));
-    //     colors.push_back(Eigen::Vector3d(0.3010, 0.7450, 0.9330));
-    //     colors.push_back(Eigen::Vector3d(0.6350, 0.0780, 0.1840));
+    pcl::visualization::PCLVisualizer visualizer(renderer, renderWindow, "Points and planes");
+    visualizer.getRenderWindow()->GlobalWarningDisplayOff();
+    visualizer.setBackgroundColor(1.0, 1.0, 1.0);
+    visualizer.initCameraParameters();
+    visualizer.setSize(1600, 900);
+    visualizer.setCameraPosition(0, 0, 10, 0, 1, 0); // Move Camera 10 up and have cam-up towards +Y
+    visualizer.addCoordinateSystem(1.0, "global");
+    visualizer.addPointCloud<pcl::PointNormal>(cloud_ptr, pcl::visualization::PointCloudColorHandlerCustom<pcl::PointNormal>{cloud_ptr, 255.0, 0.0, 0.0}, "cloud");
 
-    //     // add any planes
-    //     size_t i = 0;
-    //     for (const auto& p : planes) {
-    //         auto pviz = makePlane(p->center(), p->normal(), p->basisU(), p->basisV());
-    //         pviz->PaintUniformColor(colors[i%6]);
-    //         geometries.push_back(pviz);
+    // add any planes
+    size_t i = 0;
+    for (const auto &p : planes)
+    {
+        AddPlane(p->center(), p->basisU(), p->basisV(), GetDefaultColorPalatte()[i % 6], renderer);
+        ++i;
+    }
 
-    //         ++i;
-    //     }
-
-    //     visualization::DrawGeometries(geometries, "Points and Planes", 1600, 900);
-
-    // visualization::VisualizerWithVertexSelection visualizer;
-    // visualizer.CreateVisualizerWindow("Plane Selection: Select Point Close to Desired Plane", 1600, 900);
-    // visualizer.AddGeometry(cloud_ptr);
-    // visualizer.Run();
-    // visualizer.DestroyVisualizerWindow();
-    // const auto pts = visualizer.GetPickedPoints();
-
-    // for (const auto& pt : pts) {
-    //     double d = std::numeric_limits<double>::max();
-    //     Plane* closest_plane;
-    //     for (const auto& p : planes) {
-    //         if (std::abs(p->getSignedDistanceFromSurface(pt.coord.cast<float>())) < d) {
-    //             d = std::abs(p->getSignedDistanceFromSurface(pt.coord.cast<float>()));
-    //             closest_plane = p;
-    //         }
-    //     }
-
-    //     if (closest_plane == nullptr) {
-    //         std::cout << "Could not find closest plane to selected point!" << std::endl;
-    //     } else {
-    //         std::cout << closest_plane->normal().transpose() << " ";
-    //         std::cout << closest_plane->distanceFromOrigin() << "\t";
-    //         std::cout << closest_plane->center().transpose() << "\t";
-    //         std::cout << closest_plane->basisU().transpose() << "\t";
-    //         std::cout << closest_plane->basisV().transpose() << std::endl;
-    //     }
-    // }
-
-    // utility::LogInfo("End of the test.\n");
+    while (!visualizer.wasStopped())
+    {
+        visualizer.spinOnce(100);
+        std::this_thread::sleep_for(100ms);
+    }
+    visualizer.close();
 
     return 0;
 }
