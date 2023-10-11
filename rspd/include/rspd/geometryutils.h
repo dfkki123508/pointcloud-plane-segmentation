@@ -5,6 +5,12 @@
 
 #include <Eigen/Dense>
 
+#define _USE_MATH_DEFINES
+#include <cmath>
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
+
 class GeometryUtils
 {
 public:
@@ -83,6 +89,12 @@ public:
         {
             delete indexedPoints[i];
         }
+    }
+
+
+    inline static double deg2rad(double deg)
+    {
+        return static_cast<double>(deg * M_PI / 180);
     }
 
 private:

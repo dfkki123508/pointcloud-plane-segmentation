@@ -1,9 +1,16 @@
 #ifndef PLANEDETECTORPATCH_H
 #define PLANEDETECTORPATCH_H
 
+#ifdef _WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+#endif
+
 #include <memory>
 #include <unordered_set>
 #include <unordered_map>
+#include <limits>
 
 #include <Eigen/Core>
 #include "plane.h"

@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.1)
 project(rspd)
 
+if(MSVC)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+endif()
+
 add_library(rspd SHARED src/planedetector.cpp src/planarpatch.cpp)
 target_link_libraries(rspd PUBLIC Open3D::Open3D)
 target_include_directories(rspd PUBLIC
