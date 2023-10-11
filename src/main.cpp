@@ -12,43 +12,34 @@
 #include <vector>
 
 #include <Eigen/Dense>
-#include <open3d/Open3D.h>
 
 #include <rspd/planedetector.h>
 #include <rspd/geometryutils.h>
 
-using namespace open3d;
+#include <pcl/io/ply_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/features/normal_3d_omp.h>
 
-std::shared_ptr<geometry::TriangleMesh> makePlane(
-    const Eigen::Vector3d& center, const Eigen::Vector3d& normal,
-    const Eigen::Vector3d& basisU, const Eigen::Vector3d& basisV)
-{
-    auto mesh_ptr = std::make_shared<geometry::TriangleMesh>();
 
-    mesh_ptr->vertices_.resize(8);
-    mesh_ptr->vertices_[0] = center - basisU - basisV;
-    mesh_ptr->vertices_[1] = center - basisU + basisV;
-    mesh_ptr->vertices_[2] = center + basisU - basisV;
-    mesh_ptr->vertices_[3] = center + basisU + basisV;
-
-    mesh_ptr->vertices_[4] = center + 0.01*normal - basisU - basisV;
-    mesh_ptr->vertices_[5] = center + 0.01*normal - basisU + basisV;
-    mesh_ptr->vertices_[6] = center + 0.01*normal + basisU - basisV;
-    mesh_ptr->vertices_[7] = center + 0.01*normal + basisU + basisV;
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(4, 7, 5));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(4, 6, 7));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(0, 2, 4));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(2, 6, 4));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(0, 1, 2));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(1, 3, 2));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(1, 5, 7));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(1, 7, 3));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(2, 3, 7));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(2, 7, 6));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(0, 4, 1));
-    mesh_ptr->triangles_.push_back(Eigen::Vector3i(1, 4, 5));
-    return mesh_ptr;
+template <typename PointT = pcl::PointNormal>
+typename pcl::PointCloud<PointT>::Ptr LoadPointCloud(const std::string & pcdfilepath) {
+    auto points = std::make_shared<typename pcl::PointCloud<PointT>>();
+    if (pcl::io::loadPLYFile<PointT>(pcdfilepath, *points) == -1) {
+        throw std::runtime_error("Reading PCD file from failed!");
+    }
+    return points;
 }
+
+
+
+void CalcNormals(pcl::PointCloud<pcl::PointNormal>::Ptr inputCloud, double radius) {
+    pcl::NormalEstimationOMP<pcl::PointNormal, pcl::PointNormal> ne;
+    ne.setInputCloud(inputCloud);
+    ne.setRadiusSearch(radius);
+    ne.compute(*inputCloud);
+}
+
 
 // ----------------------------------------------------------------------------
 
@@ -62,16 +53,13 @@ int main(int argc, char *argv[]) {
         }
         std::cout << std::endl;
 
-        utility::LogInfo("Open3D {}", OPEN3D_VERSION);
-        utility::LogInfo("Usage:");
-        utility::LogInfo("    > TestVisualizer [filename] [mMinNormalDiff] [mMaxDist] [mOutlierRatio]");
         return 1;
     }
 
     // Defaults produce the best results currently
-    double minNormalDiff = 25.f;
-    double maxDist = 30.f;
-    double outlierRatio = 0.1f;
+    double minNormalDiff = 25.0;
+    double maxDist = 30.0;
+    double outlierRatio = 0.1;
     if (argc > 2) {
         minNormalDiff = std::stod(argv[2]);
         if (argc > 3) {
@@ -86,57 +74,46 @@ int main(int argc, char *argv[]) {
     std::cout << "outlierRatio: " << outlierRatio << std::endl;
 
     static constexpr int nrNeighbors = 75;
-    const geometry::KDTreeSearchParam &search_param = geometry::KDTreeSearchParamKNN(nrNeighbors);
 
-    auto cloud_ptr = std::make_shared<geometry::PointCloud>();
-    if (io::ReadPointCloud(argv[1], *cloud_ptr)) {
-        utility::LogInfo("Successfully read {}\n", argv[1]);
-    } else {
-        utility::LogWarning("Failed to read {}\n\n", argv[1]);
-        return 1;
-    }
+    auto cloud_ptr = LoadPointCloud(argv[1]);
 
-    if (cloud_ptr->HasNormals()) {
-        std::cout << "already has normals" << std::endl;
-    } else {
-        std::cout << "no normals" << std::endl;
-    }
+    std::cout << "Loaded point cloud with " << cloud_ptr->size() << " points." << std::endl;
+    
 
     auto t1 = std::chrono::high_resolution_clock::now();
-    cloud_ptr->EstimateNormals(search_param);
+    CalcNormals(cloud_ptr, 0.25);
     const double t_normals = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
     std::cout << "o3d EstimateNormals: " << t_normals << " seconds" << std::endl;
 
-    t1 = std::chrono::high_resolution_clock::now();
-    geometry::KDTreeFlann kdtree;
-    kdtree.SetGeometry(*cloud_ptr);
     std::vector<std::vector<int>> neighbors;
-    neighbors.resize(cloud_ptr->points_.size());
-    std::cout << "num points: " << cloud_ptr->points_.size() << std::endl;
+    neighbors.resize(cloud_ptr->size());
+
+    // KD tree with pcl
+    t1 = std::chrono::high_resolution_clock::now();
+
+    std::cout << "Constructing kdtree..." << std::endl;
+    pcl::KdTreeFLANN<pcl::PointNormal> kdtree;
+    kdtree.setInputCloud(cloud_ptr);
+
+    std::cout << "Finding neighbors..." << std::endl;
 #pragma omp parallel for schedule(static)
-    for (int i = 0; i < (int)cloud_ptr->points_.size(); i++) {
+    for (int i = 0; i < (int)cloud_ptr->size(); i++) {
+        const auto& searchPoint = cloud_ptr->points[i];
         std::vector<int> indices;
-        std::vector<double> distance2;
-        if (kdtree.Search(cloud_ptr->points_[i], search_param, indices, distance2)/* >= 3*/) {
+        std::vector<float> distance2;
+        if(kdtree.nearestKSearch(searchPoint, nrNeighbors, indices, distance2)) {
             neighbors[i] = indices;
         }
     }
+
     const double t_kdtree = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
     std::cout << "kdtree search: " << t_kdtree << " seconds" << std::endl;
 
-
-    std::cout << "o3d cloud: center: " << cloud_ptr->GetCenter().transpose() << std::endl;
-    Eigen::Vector3d bl = cloud_ptr->GetMinBound();
-    Eigen::Vector3d tr = cloud_ptr->GetMaxBound();
-    std::cout << "o3d cloud: ext center: " << ((bl + tr) / 2).transpose() << std::endl;
-    std::cout << "o3d cloud: bottom left: " << bl.transpose() << std::endl;
-    std::cout << "o3d cloud: top right: " << tr.transpose() << std::endl;
-
     t1 = std::chrono::high_resolution_clock::now();
     PlaneDetector rspd(cloud_ptr, neighbors);
-    rspd.minNormalDiff(std::cos(GeometryUtils::deg2rad(minNormalDiff))); // 60.f
-    rspd.maxDist(std::cos(GeometryUtils::deg2rad(maxDist)));  // 75.f
-    rspd.outlierRatio(outlierRatio); // 0.75f
+    rspd.minNormalDiff(std::cos(GeometryUtils::deg2rad(minNormalDiff)));
+    rspd.maxDist(std::cos(GeometryUtils::deg2rad(maxDist)));
+    rspd.outlierRatio(outlierRatio);
     
     std::set<Plane*> planes = rspd.detect();
     const double t_rspd = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
@@ -157,35 +134,35 @@ int main(int argc, char *argv[]) {
     std::cout << "EstimateNormals: " << t_normals << " seconds" << std::endl;
     std::cout << "DetectPlanarPatches: " << planes.size() << " in " << (t_rspd+t_kdtree) << " seconds" << std::endl;
 
-    //
-    // Visualization
-    //
+//     //
+//     // Visualization
+//     //
 
-    // create a vector of geometries to visualize, starting with input point cloud
-    std::vector<std::shared_ptr<const geometry::Geometry>> geometries;
-    geometries.reserve(planes.size());
-    // geometries.push_back(cloud_ptr);
+//     // create a vector of geometries to visualize, starting with input point cloud
+//     std::vector<std::shared_ptr<const geometry::Geometry>> geometries;
+//     geometries.reserve(planes.size());
+//     // geometries.push_back(cloud_ptr);
 
-    // Colors (default MATLAB colors)
-    std::vector<Eigen::Vector3d> colors;
-    colors.push_back(Eigen::Vector3d(0.8500, 0.3250, 0.0980));
-    colors.push_back(Eigen::Vector3d(0.9290, 0.6940, 0.1250));
-    colors.push_back(Eigen::Vector3d(0.4940, 0.1840, 0.5560));
-    colors.push_back(Eigen::Vector3d(0.4660, 0.6740, 0.1880));
-    colors.push_back(Eigen::Vector3d(0.3010, 0.7450, 0.9330));
-    colors.push_back(Eigen::Vector3d(0.6350, 0.0780, 0.1840));
+//     // Colors (default MATLAB colors)
+//     std::vector<Eigen::Vector3d> colors;
+//     colors.push_back(Eigen::Vector3d(0.8500, 0.3250, 0.0980));
+//     colors.push_back(Eigen::Vector3d(0.9290, 0.6940, 0.1250));
+//     colors.push_back(Eigen::Vector3d(0.4940, 0.1840, 0.5560));
+//     colors.push_back(Eigen::Vector3d(0.4660, 0.6740, 0.1880));
+//     colors.push_back(Eigen::Vector3d(0.3010, 0.7450, 0.9330));
+//     colors.push_back(Eigen::Vector3d(0.6350, 0.0780, 0.1840));
 
-    // add any planes
-    size_t i = 0;
-    for (const auto& p : planes) {
-        auto pviz = makePlane(p->center(), p->normal(), p->basisU(), p->basisV());
-        pviz->PaintUniformColor(colors[i%6]);
-        geometries.push_back(pviz);
+//     // add any planes
+//     size_t i = 0;
+//     for (const auto& p : planes) {
+//         auto pviz = makePlane(p->center(), p->normal(), p->basisU(), p->basisV());
+//         pviz->PaintUniformColor(colors[i%6]);
+//         geometries.push_back(pviz);
 
-        ++i;
-    }
+//         ++i;
+//     }
 
-    visualization::DrawGeometries(geometries, "Points and Planes", 1600, 900);
+//     visualization::DrawGeometries(geometries, "Points and Planes", 1600, 900);
 
     // visualization::VisualizerWithVertexSelection visualizer;
     // visualizer.CreateVisualizerWindow("Plane Selection: Select Point Close to Desired Plane", 1600, 900);

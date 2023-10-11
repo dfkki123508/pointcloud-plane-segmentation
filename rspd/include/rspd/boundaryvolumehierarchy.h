@@ -6,12 +6,15 @@
 #include <set>
 #include <queue>
 
-#include <open3d/Open3D.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
+#include "pclutils.h"
 
 class BVH3d
 {
 public:
-    using PointCloudConstPtr = std::shared_ptr<const open3d::geometry::PointCloud>;
+    using PointCloudConstPtr = pcl::PointCloud<pcl::PointNormal>::ConstPtr;
     using Vector = Eigen::Vector3d;
     static constexpr size_t NUM_CHILDREN = 1 << 3;
 
@@ -23,8 +26,8 @@ public:
         , mLevel(0)
     {
 
-        const Vector min = pointCloud->GetMinBound();
-        const Vector max = pointCloud->GetMaxBound();
+        const Vector min = getMinPoint(pointCloud).cast<double>();
+        const Vector max = getMaxPoint(pointCloud).cast<double>();
         mCenter = (min + max) / 2;
 
         double maxSize = 0;
@@ -33,7 +36,7 @@ public:
         }
 
         mSize = maxSize / 2;
-        mIndices = std::vector<size_t>(pointCloud->points_.size());
+        mIndices = std::vector<size_t>(pointCloud->size());
         std::iota(mIndices.begin(), mIndices.end(), 0);
     }
 
@@ -62,7 +65,6 @@ public:
     {
         if (!isLeaf())
         {
-            open3d::utility::LogWarning("not isLeaf on level {}", mLevel);
             for (size_t i = 0; i < NUM_CHILDREN; i++)
             {
                 if (mChildren[i] != NULL)
@@ -89,10 +91,10 @@ public:
             for (const size_t &index : mIndices)
             {
                 // calculate child index comparing position to child center
-                size_t childIndex = calculateChildIndex(this->pointCloud()->points_[index]);
+                size_t childIndex = calculateChildIndex(this->pointCloud()->points[index].getVector3fMap().cast<double>());
                 if (mChildren[childIndex] == NULL)
                 {
-                    if (this->pointCloud()->points_[index].array().sum() == 0) {
+                    if (this->pointCloud()->points[index].getVector3fMap().array().sum() == 0) {
                         std::cout << "zero!" << std::endl;
                     }
                     mChildren[childIndex] = new BVH3d(this, newCenters[childIndex], newSize);

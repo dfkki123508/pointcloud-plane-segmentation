@@ -17,7 +17,8 @@
 // #include "pointcloud.h"
 #include "statisticsutils.h"
 
-#include <open3d/Open3D.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
 struct RotatedRect
 {
@@ -55,7 +56,7 @@ struct RotatedRect
 class PlanarPatch
 {
 public:
-    using PointCloudConstPtr = std::shared_ptr<const open3d::geometry::PointCloud>;
+    using PointCloudConstPtr = pcl::PointCloud<pcl::PointNormal>::ConstPtr;
     PlanarPatch(const PointCloudConstPtr& mPointCloud, StatisticsUtils *statistics,
                 const std::vector<size_t> &mPoints, double minAllowedNormal,
                 double maxAllowedDist, double outlierRatio);
@@ -72,8 +73,10 @@ public:
 
     inline bool isInlier(size_t point) const
     {
-        return std::abs(mPlane.normal().dot(mPointCloud->normals_[point])) > mMinNormalDiff &&
-                std::abs(mPlane.getSignedDistanceFromSurface(mPointCloud->points_[point])) < mMaxDistPlane;
+        Eigen::Matrix<double,3,1,0,3,1> p = mPointCloud->points[point].getVector3fMap().cast<double>();
+        Eigen::Matrix<double,3,1,0,3,1> n = mPointCloud->points[point].getNormalVector3fMap().cast<double>();
+        return std::abs(mPlane.normal().dot(n)) > mMinNormalDiff &&
+                std::abs(mPlane.getSignedDistanceFromSurface(p)) < mMaxDistPlane;
     }
 
     inline bool isVisited(size_t point) const

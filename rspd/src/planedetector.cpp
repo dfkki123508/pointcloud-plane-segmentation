@@ -31,8 +31,8 @@ PlaneDetector::PlaneDetector(const PointCloudConstPtr& pointCloud, std::vector<s
 {
     mNeighbors.swap(neighbors);
 
-    mBottomLeft = pointCloud->GetMinBound();
-    mTopRight = pointCloud->GetMaxBound();
+    mBottomLeft = getMinPoint(pointCloud).cast<double>();
+    mTopRight = getMinPoint(pointCloud).cast<double>();
     mExtCenter = (mBottomLeft + mTopRight) / 2;
 
     double maxSize = 0;
@@ -56,7 +56,7 @@ std::set<Plane*> PlaneDetector::detect()
     IF_DEBUG(
         auto t1 = std::chrono::high_resolution_clock::now();
     )
-    StatisticsUtils statistics(pointCloud()->points_.size());
+    StatisticsUtils statistics(pointCloud()->size());
     BVH3d octree(pointCloud());
     std::vector<PlanarPatch*> patches;
     detectPlanarPatches(&octree, &statistics, patches);
@@ -64,7 +64,7 @@ std::set<Plane*> PlaneDetector::detect()
         timeDetectPatches += std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
     )
     
-    mPatchPoints = std::vector<PlanarPatch*>(pointCloud()->points_.size(), NULL);
+    mPatchPoints = std::vector<PlanarPatch*>(pointCloud()->size(), NULL);
     for (PlanarPatch *patch : patches)
     {
         for (const size_t &point : patch->points())
@@ -197,7 +197,7 @@ void PlaneDetector::growPatches(std::vector<PlanarPatch*> &patches, bool relaxed
             for (int neighbor : mNeighbors[point])
             {
                 if (mPatchPoints[neighbor] != NULL || (!relaxed && patch->isVisited(neighbor))) continue;
-                if ((!relaxed && patch->isInlier(neighbor)) || (relaxed && std::abs(patch->plane().getSignedDistanceFromSurface(pointCloud()->points_[neighbor])) < patch->maxDistPlane()))
+                if ((!relaxed && patch->isInlier(neighbor)) || (relaxed && std::abs(patch->plane().getSignedDistanceFromSurface(pointCloud()->points[neighbor].getVector3fMap().cast<double>()) < patch->maxDistPlane())))
                 {
                     queue.push(neighbor);
                     patch->addPoint(neighbor);
@@ -242,10 +242,10 @@ void PlaneDetector::mergePatches(std::vector<PlanarPatch*> &patches)
                     disconnectedPatches[p->index() * n + np->index()] || p->isVisited(neighbor) || np->isVisited(point)) continue;
                 p->visit(neighbor);
                 np->visit(point);
-                const Eigen::Vector3d &p1 = pointCloud()->points_[point];
-                const Eigen::Vector3d &n1 = pointCloud()->normals_[point];
-                const Eigen::Vector3d &p2 = pointCloud()->points_[neighbor];
-                const Eigen::Vector3d &n2 = pointCloud()->normals_[neighbor];
+                const Eigen::Vector3d &p1 = pointCloud()->points[point].getVector3fMap().cast<double>();
+                const Eigen::Vector3d &n1 = pointCloud()->points[point].getNormalVector3fMap().cast<double>();
+                const Eigen::Vector3d &p2 = pointCloud()->points[neighbor].getVector3fMap().cast<double>();
+                const Eigen::Vector3d &n2 = pointCloud()->points[neighbor].getNormalVector3fMap().cast<double>();
                 double distThreshold = std::max(p->maxDistPlane(), np->maxDistPlane());
                 double normalThreshold = std::min(p->minNormalDiff(), np->minNormalDiff());
                 graph[p->index() * n + np->index()] = std::abs(p->plane().normal().dot(n2)) > normalThreshold &&
@@ -323,7 +323,7 @@ void PlaneDetector::getPlaneOutlier(const PlanarPatch *patch, std::vector<size_t
     std::vector<Eigen::Vector2d> projectedPoints(patch->points().size());
     for (size_t i = 0; i < patch->points().size(); i++)
     {
-        Eigen::Vector3d position = pointCloud()->points_[patch->points()[i]];
+        Eigen::Vector3d position = pointCloud()->points[patch->points()[i]].getVector3fMap().cast<double>();
         projectedPoints[i] = GeometryUtils::projectOntoOrthogonalBasis(position, basisU, basisV);
     }
     GeometryUtils::convexHull(projectedPoints, outlier);
@@ -345,7 +345,7 @@ void PlaneDetector::delimitPlane(PlanarPatch *patch)
     Eigen::Matrix3Xd matrix(3, outlier.size());
     for (size_t i = 0; i < outlier.size(); i++)
     {
-        matrix.col(i) = pointCloud()->points_[outlier[i]];
+        matrix.col(i) = pointCloud()->points[outlier[i]].getVector3fMap().cast<double>();
     }
     double minAngle = 0;
     double maxAngle = 90;

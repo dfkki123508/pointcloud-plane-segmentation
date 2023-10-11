@@ -26,7 +26,7 @@ double PlanarPatch::getSize() const
     Eigen::Vector3d max = -min;
     for (const size_t &point : mPoints)
     {
-        Eigen::Vector3d position = mPointCloud->points_[point];
+        Eigen::Vector3d position = mPointCloud->points[point].getVector3fMap().cast<double>();
         for (size_t i = 0; i < 3; i++)
         {
             min(i) = std::min(min(i), position(i));
@@ -49,7 +49,7 @@ Plane PlanarPatch::getPlane()
     {
         for (size_t i = 0; i < mPoints.size(); i++)
         {
-            mStatistics->dataBuffer()[i] = mPointCloud->points_[mPoints[i]](dim);
+            mStatistics->dataBuffer()[i] = mPointCloud->points[mPoints[i]].getVector3fMap().cast<double>()(dim);
         }
         center(dim) = mStatistics->getMedian();
     }
@@ -58,7 +58,7 @@ Plane PlanarPatch::getPlane()
     {
         for (size_t i = 0; i < mPoints.size(); i++)
         {
-            mStatistics->dataBuffer()[i] = mPointCloud->normals_[mPoints[i]](dim);
+            mStatistics->dataBuffer()[i] = mPointCloud->points[mPoints[i]].getNormalVector3fMap().cast<double>()(dim);
         }
         normal(dim) = mStatistics->getMedian();
     }
@@ -71,7 +71,7 @@ double PlanarPatch::getMaxPlaneDist()
     mStatistics->size(mPoints.size());
     for (size_t i = 0; i < mPoints.size(); i++)
     {
-        const Eigen::Vector3d &position = mPointCloud->points_[mPoints[i]];
+        const Eigen::Vector3d &position = mPointCloud->points[mPoints[i]].getVector3fMap().cast<double>();
         mStatistics->dataBuffer()[i] = std::abs(mPlane.getSignedDistanceFromSurface(position));
     }
     double minDist, maxDist;
@@ -84,7 +84,7 @@ double PlanarPatch::getMinNormalDiff()
     mStatistics->size(mPoints.size());
     for (size_t i = 0; i < mPoints.size(); i++)
     {
-        const Eigen::Vector3d &normal = mPointCloud->normals_[mPoints[i]];
+        const Eigen::Vector3d &normal = mPointCloud->points[mPoints[i]].getNormalVector3fMap().cast<double>();
         mStatistics->dataBuffer()[i] = std::abs(normal.dot(mPlane.normal()));
     }
     double minDiff, maxDiff;
@@ -147,7 +147,7 @@ void PlanarPatch::updatePlane()
     }
     if (mUsedVisited2) {
         if (mVisited2.empty()) {
-            mVisited2 = std::vector<bool>(mPointCloud->points_.size(), false);
+            mVisited2 = std::vector<bool>(mPointCloud->size(), false);
         } else {
             std::fill(mVisited2.begin(), mVisited2.end(), false);
         }

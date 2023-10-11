@@ -4,12 +4,13 @@
 #include "planarpatch.h"
 #include "boundaryvolumehierarchy.h"
 
-#include <open3d/Open3D.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
 class PlaneDetector
 {
 public:
-    using PointCloudConstPtr = std::shared_ptr<const open3d::geometry::PointCloud>;
+    using PointCloudConstPtr = pcl::PointCloud<pcl::PointNormal>::ConstPtr;
     PlaneDetector(const PointCloudConstPtr& pointCloud, std::vector<std::vector<int>>& neighbors, size_t minNumPoints = 30);
 
     void delimitPlane(PlanarPatch *patch);
