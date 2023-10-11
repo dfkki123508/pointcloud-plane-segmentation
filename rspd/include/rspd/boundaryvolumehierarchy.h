@@ -18,12 +18,8 @@ public:
     using Vector = Eigen::Vector3d;
     static constexpr size_t NUM_CHILDREN = 1 << 3;
 
-    BVH3d(const PointCloudConstPtr& pointCloud)
-        : mPointCloud(pointCloud)
-        , mRoot(this)
-        , mParent(this)
-        , mLeaf(true)
-        , mLevel(0)
+    BVH3d(const PointCloudConstPtr &pointCloud)
+        : mPointCloud(pointCloud), mRoot(this), mParent(this), mLeaf(true), mLevel(0)
     {
 
         const Vector min = getMinPoint(pointCloud).cast<double>();
@@ -31,7 +27,8 @@ public:
         mCenter = (min + max) / 2;
 
         double maxSize = 0;
-        for (size_t dim = 0; dim<3; dim++) {
+        for (size_t dim = 0; dim < 3; dim++)
+        {
             maxSize = std::max(maxSize, max(dim) - min(dim));
         }
 
@@ -56,7 +53,7 @@ public:
         }
     }
 
-    const PointCloudConstPtr& pointCloud() const
+    const PointCloudConstPtr &pointCloud() const
     {
         return mPointCloud;
     }
@@ -73,7 +70,8 @@ public:
         }
         else
         {
-            if (levels <= 0 || mIndices.size() <= minNumPoints || mIndices.size() <= 1 || mSize < minSize) return;
+            if (levels <= 0 || mIndices.size() <= minNumPoints || mIndices.size() <= 1 || mSize < minSize)
+                return;
             // create new centers
             Vector newCenters[NUM_CHILDREN];
             calculateNewCenters(newCenters);
@@ -94,7 +92,8 @@ public:
                 size_t childIndex = calculateChildIndex(this->pointCloud()->points[index].getVector3fMap().cast<double>());
                 if (mChildren[childIndex] == NULL)
                 {
-                    if (this->pointCloud()->points[index].getVector3fMap().array().sum() == 0) {
+                    if (this->pointCloud()->points[index].getVector3fMap().array().sum() == 0)
+                    {
                         std::cout << "zero!" << std::endl;
                     }
                     mChildren[childIndex] = new BVH3d(this, newCenters[childIndex], newSize);
@@ -108,22 +107,24 @@ public:
             // partition recursively
             for (size_t i = 0; i < NUM_CHILDREN; i++)
             {
-                if (mChildren[i] != NULL) {
+                if (mChildren[i] != NULL)
+                {
                     mChildren[i]->partition(levels - 1, minNumPoints, minSize);
                 }
             }
         }
     }
 
-    BVH3d* child(size_t index)
+    BVH3d *child(size_t index)
     {
         return mChildren[index];
     }
 
-    std::vector<const BVH3d*> children() const
+    std::vector<const BVH3d *> children() const
     {
-        if (isLeaf()) return std::vector<const BVH3d*>();
-        std::vector<const BVH3d*> children;
+        if (isLeaf())
+            return std::vector<const BVH3d *>();
+        std::vector<const BVH3d *> children;
         for (size_t i = 0; i < NUM_CHILDREN; i++)
         {
             if (mChildren[i] != NULL)
@@ -132,7 +133,7 @@ public:
         return children;
     }
 
-    const BVH3d* parent() const
+    const BVH3d *parent() const
     {
         return mParent;
     }
@@ -203,13 +204,7 @@ private:
     std::vector<size_t> mIndices;
 
     BVH3d(BVH3d *parent, const Vector &center, double size)
-        : mPointCloud(parent->pointCloud())
-        , mRoot(parent->mRoot)
-        , mParent(parent)
-        , mCenter(center)
-        , mSize(size)
-        , mLeaf(true)
-        , mLevel(parent->mLevel + 1)
+        : mPointCloud(parent->pointCloud()), mRoot(parent->mRoot), mParent(parent), mCenter(center), mSize(size), mLeaf(true), mLevel(parent->mLevel + 1)
     {
         for (size_t i = 0; i < NUM_CHILDREN; i++)
         {
@@ -239,7 +234,6 @@ private:
         }
         return childIndex;
     }
-
 };
 
 #endif // BVH3d_H

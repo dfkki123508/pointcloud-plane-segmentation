@@ -11,7 +11,7 @@ class PlaneDetector
 {
 public:
     using PointCloudConstPtr = pcl::PointCloud<pcl::PointNormal>::ConstPtr;
-    PlaneDetector(const PointCloudConstPtr& pointCloud, std::vector<std::vector<int>>& neighbors, size_t minNumPoints = 30);
+    PlaneDetector(const PointCloudConstPtr &pointCloud, std::vector<std::vector<int>> &neighbors, size_t minNumPoints = 30);
 
     void delimitPlane(PlanarPatch *patch);
 
@@ -47,9 +47,9 @@ public:
         mOutlierRatio = outlierRatio;
     }
 
-    std::set<Plane*> detect();
+    std::set<Plane *> detect();
 
-    const PointCloudConstPtr& pointCloud() const
+    const PointCloudConstPtr &pointCloud() const
     {
         return mPointCloud;
     }
@@ -63,24 +63,23 @@ private:
     Eigen::Vector3d mExtCenter;
     double mMaxSize; // pointcloud rect extension max size
 
-    std::vector<PlanarPatch*> mPatchPoints;
+    std::vector<PlanarPatch *> mPatchPoints;
     double mMinNormalDiff;
     double mMaxDist;
     double mOutlierRatio;
     size_t mMinNumPoints;
 
-    bool detectPlanarPatches(BVH3d *node, StatisticsUtils *statistics, std::vector<PlanarPatch*> &patches);
+    bool detectPlanarPatches(BVH3d *node, StatisticsUtils *statistics, std::vector<PlanarPatch *> &patches);
 
-    void growPatches(std::vector<PlanarPatch*> &patches, bool relaxed = false);
+    void growPatches(std::vector<PlanarPatch *> &patches, bool relaxed = false);
 
-    void mergePatches(std::vector<PlanarPatch*> &patches);
+    void mergePatches(std::vector<PlanarPatch *> &patches);
 
-    bool updatePatches(std::vector<PlanarPatch*> &patches);
+    bool updatePatches(std::vector<PlanarPatch *> &patches);
 
     void getPlaneOutlier(const PlanarPatch *patch, std::vector<size_t> &outlier);
 
     bool isFalsePositive(PlanarPatch *patch);
-
 };
 
 #endif // PLANEDETECTOR_H

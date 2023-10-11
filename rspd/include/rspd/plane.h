@@ -9,19 +9,15 @@ public:
     Plane()
         : mCenter(Eigen::Vector3d::Zero())
     {
-
     }
 
     Plane(const Eigen::Vector3d &center, const Eigen::Vector3d &normal, Eigen::Vector3d basisU = Eigen::Vector3d::Zero(), Eigen::Vector3d basisV = Eigen::Vector3d::Zero())
-        : mCenter(center)
-        , mNormal(normal)
-        , mBasisU(basisU)
-        , mBasisV(basisV)
+        : mCenter(center), mNormal(normal), mBasisU(basisU), mBasisV(basisV)
     {
         mDistanceFromOrigin = -mNormal.dot(center);
     }
 
-    const Eigen::Vector3d& normal() const
+    const Eigen::Vector3d &normal() const
     {
         return mNormal;
     }
@@ -32,7 +28,7 @@ public:
         mDistanceFromOrigin = -mNormal.dot(center());
     }
 
-    const Eigen::Vector3d& basisU() const
+    const Eigen::Vector3d &basisU() const
     {
         return mBasisU;
     }
@@ -42,7 +38,7 @@ public:
         mBasisU = basisU;
     }
 
-    const Eigen::Vector3d& basisV() const
+    const Eigen::Vector3d &basisV() const
     {
         return mBasisV;
     }
@@ -52,7 +48,7 @@ public:
         mBasisV = basisV;
     }
 
-    const Eigen::Vector3d& center() const
+    const Eigen::Vector3d &center() const
     {
         return mCenter;
     }
@@ -73,7 +69,7 @@ public:
         return mNormal.dot(point) + mDistanceFromOrigin;
     }
 
-    const std::vector<size_t>& inliers() const
+    const std::vector<size_t> &inliers() const
     {
         return mInliers;
     }
@@ -91,10 +87,9 @@ private:
     Eigen::Vector3d mBasisU;
     Eigen::Vector3d mBasisV;
     float mDistanceFromOrigin;
-
 };
 
-//template class Plane<float>;
-//template class Plane<double>;
+// template class Plane<float>;
+// template class Plane<double>;
 
 #endif // PLANE_H

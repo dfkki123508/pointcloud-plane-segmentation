@@ -8,7 +8,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #ifndef M_PI
-    #define M_PI 3.14159265358979323846
+#define M_PI 3.14159265358979323846
 #endif
 
 class GeometryUtils
@@ -53,32 +53,33 @@ public:
             }
             return;
         }
-        std::vector<IndexedPoint2d*> indexedPoints(points.size());
+        std::vector<IndexedPoint2d *> indexedPoints(points.size());
         for (size_t i = 0; i < indexedPoints.size(); i++)
         {
             indexedPoints[i] = new IndexedPoint2d(i, points[i]);
         }
-        std::sort(indexedPoints.begin(), indexedPoints.end(), [](const IndexedPoint2d *a, const IndexedPoint2d *b) {
-            return a->point.x() < b->point.x() || (a->point.x() == b->point.x() && a->point.y() < b->point.y());
-        });
-        std::vector<IndexedPoint2d*> H(2*points.size());
+        std::sort(indexedPoints.begin(), indexedPoints.end(), [](const IndexedPoint2d *a, const IndexedPoint2d *b)
+                  { return a->point.x() < b->point.x() || (a->point.x() == b->point.x() && a->point.y() < b->point.y()); });
+        std::vector<IndexedPoint2d *> H(2 * points.size());
         size_t k = 0;
 
         // Build lower hull
         for (size_t i = 0; i < indexedPoints.size(); i++)
         {
-            while (k >= 2 && convexHullCross(H[k-2], H[k-1], indexedPoints[i]) <= 0) k--;
+            while (k >= 2 && convexHullCross(H[k - 2], H[k - 1], indexedPoints[i]) <= 0)
+                k--;
             H[k++] = indexedPoints[i];
         }
 
         // Build upper hull
-        for (size_t i = indexedPoints.size()-1, t = k+1; i > 0; --i)
+        for (size_t i = indexedPoints.size() - 1, t = k + 1; i > 0; --i)
         {
-            while (k >= t && convexHullCross(H[k-2], H[k-1], indexedPoints[i-1]) <= 0) k--;
-            H[k++] = indexedPoints[i-1];
+            while (k >= t && convexHullCross(H[k - 2], H[k - 1], indexedPoints[i - 1]) <= 0)
+                k--;
+            H[k++] = indexedPoints[i - 1];
         }
 
-        H.resize(k-1);
+        H.resize(k - 1);
         indices = std::vector<size_t>(H.size());
         for (size_t i = 0; i < H.size(); i++)
         {
@@ -91,7 +92,6 @@ public:
         }
     }
 
-
     inline static double deg2rad(double deg)
     {
         return static_cast<double>(deg * M_PI / 180);
@@ -103,19 +103,16 @@ private:
         size_t index;
         Eigen::Vector2d point;
         IndexedPoint2d(size_t index, const Eigen::Vector2d &point)
-            : index(index)
-            , point(point)
+            : index(index), point(point)
         {
-
         }
     };
 
     static float convexHullCross(const IndexedPoint2d *o, const IndexedPoint2d *a, const IndexedPoint2d *b)
     {
         return (a->point.x() - o->point.x()) * (b->point.y() - o->point.y()) -
-                (a->point.y() - o->point.y()) * (b->point.x() - o->point.x());
+               (a->point.y() - o->point.y()) * (b->point.x() - o->point.x());
     }
-
 };
 
 #endif // GEOMETRYUTILS_H

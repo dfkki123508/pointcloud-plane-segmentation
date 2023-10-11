@@ -16,7 +16,7 @@ public:
         mTempBuffer.reserve(bufferSize);
     }
 
-    std::vector<double>& dataBuffer()
+    std::vector<double> &dataBuffer()
     {
         return mDataBuffer;
     }
@@ -98,7 +98,6 @@ private:
     std::vector<double> mDataBuffer;
     std::vector<double> mTempBuffer;
     size_t mSize;
-
 };
 
 #endif // STATISTICSUTILS_H

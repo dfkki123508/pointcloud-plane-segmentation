@@ -2,9 +2,9 @@
 #define PLANEDETECTORPATCH_H
 
 #ifdef _WIN32
-    #ifndef NOMINMAX
-        #define NOMINMAX
-    #endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #endif
 
 #include <memory>
@@ -50,14 +50,13 @@ struct RotatedRect
         this->topRight = max;
         this->R_12 = R_12;
     }
-
 };
 
 class PlanarPatch
 {
 public:
     using PointCloudConstPtr = pcl::PointCloud<pcl::PointNormal>::ConstPtr;
-    PlanarPatch(const PointCloudConstPtr& mPointCloud, StatisticsUtils *statistics,
+    PlanarPatch(const PointCloudConstPtr &mPointCloud, StatisticsUtils *statistics,
                 const std::vector<size_t> &mPoints, double minAllowedNormal,
                 double maxAllowedDist, double outlierRatio);
 
@@ -73,15 +72,16 @@ public:
 
     inline bool isInlier(size_t point) const
     {
-        Eigen::Matrix<double,3,1,0,3,1> p = mPointCloud->points[point].getVector3fMap().cast<double>();
-        Eigen::Matrix<double,3,1,0,3,1> n = mPointCloud->points[point].getNormalVector3fMap().cast<double>();
+        Eigen::Matrix<double, 3, 1, 0, 3, 1> p = mPointCloud->points[point].getVector3fMap().cast<double>();
+        Eigen::Matrix<double, 3, 1, 0, 3, 1> n = mPointCloud->points[point].getNormalVector3fMap().cast<double>();
         return std::abs(mPlane.normal().dot(n)) > mMinNormalDiff &&
-                std::abs(mPlane.getSignedDistanceFromSurface(p)) < mMaxDistPlane;
+               std::abs(mPlane.getSignedDistanceFromSurface(p)) < mMaxDistPlane;
     }
 
     inline bool isVisited(size_t point) const
     {
-        if (!mVisited2.empty()) {
+        if (!mVisited2.empty())
+        {
             return mVisited2[point];
         }
         return mVisited.find(point) != mVisited.end();
@@ -89,9 +89,12 @@ public:
 
     inline void visit(size_t point)
     {
-        if (!mVisited2.empty()) {
+        if (!mVisited2.empty())
+        {
             mVisited2[point] = true;
-        } else {
+        }
+        else
+        {
             mVisited.insert(point);
         }
     }
@@ -107,7 +110,7 @@ public:
 
     void updatePlane();
 
-    const std::vector<size_t>& points() const
+    const std::vector<size_t> &points() const
     {
         return mPoints;
     }
@@ -117,7 +120,7 @@ public:
         mPoints = points;
     }
 
-    const Plane& plane() const
+    const Plane &plane() const
     {
         return mPlane;
     }
@@ -167,17 +170,17 @@ public:
         mMinNormalDiff = minNormalDiff;
     }
 
-    RotatedRect& rect()
+    RotatedRect &rect()
     {
         return mRect;
     }
 
-    size_t& numNewPoints()
+    size_t &numNewPoints()
     {
         return mNumNewPoints;
     }
 
-    bool& stable()
+    bool &stable()
     {
         return mStable;
     }
@@ -196,7 +199,7 @@ public:
 
     double getSize() const;
 
-// private:
+    // private:
     PointCloudConstPtr mPointCloud;
     StatisticsUtils *mStatistics;
     std::vector<size_t> mPoints;
@@ -226,7 +229,6 @@ public:
     double getMinNormalDiff();
 
     Plane getPlane();
-
 };
 
 #endif // PLANEDETECTORPATCH_H

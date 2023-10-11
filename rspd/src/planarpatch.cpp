@@ -2,22 +2,11 @@
 
 #include <iostream>
 
-PlanarPatch::PlanarPatch(const PointCloudConstPtr& pointCloud, StatisticsUtils *statistics,
+PlanarPatch::PlanarPatch(const PointCloudConstPtr &pointCloud, StatisticsUtils *statistics,
                          const std::vector<size_t> &points, double minAllowedNormal,
                          double maxAllowedDist, double outlierRatio)
-    : mPointCloud(pointCloud)
-    , mStatistics(statistics)
-    , mPoints(points)
-    , mOriginalSize(getSize())
-    , mNumNewPoints(0)
-    , mNumUpdates(0)
-    , mStable(false)
-    , mMinAllowedNormal(minAllowedNormal)
-    , mMaxAllowedDist(maxAllowedDist)
-    , mOutlierRatio(outlierRatio)
-    , mUsedVisited2(false)
+    : mPointCloud(pointCloud), mStatistics(statistics), mPoints(points), mOriginalSize(getSize()), mNumNewPoints(0), mNumUpdates(0), mStable(false), mMinAllowedNormal(minAllowedNormal), mMaxAllowedDist(maxAllowedDist), mOutlierRatio(outlierRatio), mUsedVisited2(false)
 {
-
 }
 
 double PlanarPatch::getSize() const
@@ -35,7 +24,8 @@ double PlanarPatch::getSize() const
     }
 
     double maxSize = 0;
-    for (size_t dim = 0; dim < 3; dim++) {
+    for (size_t dim = 0; dim < 3; dim++)
+    {
         maxSize = std::max(maxSize, max(dim) - min(dim));
     }
     return maxSize;
@@ -110,7 +100,8 @@ bool PlanarPatch::isPlanar()
     mPlane = getPlane();
 
     mMinNormalDiff = getMinNormalDiff();
-    if (!isNormalValid()) return false;
+    if (!isNormalValid())
+        return false;
     size_t countOutliers = 0;
     for (size_t i = 0; i < mPoints.size(); i++)
     {
@@ -118,10 +109,12 @@ bool PlanarPatch::isPlanar()
         mOutliers[mPoints[i]] = outlier;
         countOutliers += outlier;
     }
-    if (countOutliers > mPoints.size() * mOutlierRatio) return false;
+    if (countOutliers > mPoints.size() * mOutlierRatio)
+        return false;
 
     mMaxDistPlane = getMaxPlaneDist();
-    if (!isDistValid()) return false;
+    if (!isDistValid())
+        return false;
     countOutliers = 0;
     for (size_t i = 0; i < mPoints.size(); i++)
     {
@@ -145,10 +138,14 @@ void PlanarPatch::updatePlane()
     {
         mUsedVisited2 = true;
     }
-    if (mUsedVisited2) {
-        if (mVisited2.empty()) {
+    if (mUsedVisited2)
+    {
+        if (mVisited2.empty())
+        {
             mVisited2 = std::vector<bool>(mPointCloud->size(), false);
-        } else {
+        }
+        else
+        {
             std::fill(mVisited2.begin(), mVisited2.end(), false);
         }
     }
@@ -158,8 +155,8 @@ void PlanarPatch::updatePlane()
 
 void PlanarPatch::removeOutliers()
 {
-    mPoints.erase(std::remove_if(mPoints.begin(), mPoints.end(), [this](const size_t &point) {
-        return mOutliers[point];
-    }), mPoints.end());
+    mPoints.erase(std::remove_if(mPoints.begin(), mPoints.end(), [this](const size_t &point)
+                                 { return mOutliers[point]; }),
+                  mPoints.end());
     mOutliers.clear();
 }

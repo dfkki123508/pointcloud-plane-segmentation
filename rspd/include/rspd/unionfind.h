@@ -9,7 +9,6 @@ public:
     UnionFind(size_t n)
         : mGroups(std::vector<int>(n, -1))
     {
-
     }
 
     int root(int x)
@@ -17,11 +16,12 @@ public:
         int r = x;
 
         /* Find root */
-        while(mGroups[r] >= 0)
+        while (mGroups[r] >= 0)
             r = mGroups[r];
 
         /* Compress path to root */
-        while(mGroups[x] >= 0) {
+        while (mGroups[x] >= 0)
+        {
             int tmp = mGroups[x];
             mGroups[x] = r;
             x = tmp;
@@ -35,12 +35,15 @@ public:
         x = root(x);
         y = root(y);
 
-        if(x != y) {
-            if(mGroups[x] < mGroups[y]) {
+        if (x != y)
+        {
+            if (mGroups[x] < mGroups[y])
+            {
                 mGroups[x] += mGroups[y];
                 mGroups[y] = x;
             }
-            else {
+            else
+            {
                 mGroups[y] += mGroups[x];
                 mGroups[x] = y;
             }
@@ -54,7 +57,6 @@ public:
 
 private:
     std::vector<int> mGroups;
-
 };
 
 #endif // UNIONFIND_H
