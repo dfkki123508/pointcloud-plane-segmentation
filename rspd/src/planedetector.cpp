@@ -1,6 +1,7 @@
 #include "rspd/planedetector.h"
 
 #include "rspd/unionfind.h"
+#include "rspd/geometryutils.h"
 
 #include <chrono>
 #include <iostream>
@@ -20,17 +21,11 @@
 #endif /* DEBUG */
 
 
-#include <open3d/Open3D.h>
-
-inline static double deg2rad(double deg)
-{
-    return static_cast<double>(deg * M_PI / 180);
-}
 
 PlaneDetector::PlaneDetector(const PointCloudConstPtr& pointCloud, std::vector<std::vector<int>>& neighbors, size_t minNumPoints)
     : mPointCloud(pointCloud)
-    , mMinNormalDiff(std::cos(deg2rad(60.0f)))
-    , mMaxDist(std::cos(deg2rad(75.0f)))
+    , mMinNormalDiff(std::cos(GeometryUtils::deg2rad(60.0f)))
+    , mMaxDist(std::cos(GeometryUtils::deg2rad(75.0f)))
     , mOutlierRatio(0.75f)
     , mMinNumPoints(minNumPoints)
 {

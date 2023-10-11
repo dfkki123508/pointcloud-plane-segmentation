@@ -1,3 +1,9 @@
+#ifdef _WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+#endif
+
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -9,6 +15,7 @@
 #include <open3d/Open3D.h>
 
 #include <rspd/planedetector.h>
+#include <rspd/geometryutils.h>
 
 using namespace open3d;
 
@@ -49,11 +56,34 @@ int main(int argc, char *argv[]) {
 
     // utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
     if (argc < 2) {
+        std::cout << "Given args (" << argc << "):" << std::endl;
+        for(int i = 0; i < argc; ++i){
+            std::cout << argv[i] << " ";
+        }
+        std::cout << std::endl;
+
         utility::LogInfo("Open3D {}", OPEN3D_VERSION);
         utility::LogInfo("Usage:");
-        utility::LogInfo("    > TestVisualizer [filename]");
+        utility::LogInfo("    > TestVisualizer [filename] [mMinNormalDiff] [mMaxDist] [mOutlierRatio]");
         return 1;
     }
+
+    // Defaults produce the best results currently
+    double minNormalDiff = 25.f;
+    double maxDist = 30.f;
+    double outlierRatio = 0.1f;
+    if (argc > 2) {
+        minNormalDiff = std::stod(argv[2]);
+        if (argc > 3) {
+            maxDist = std::stod(argv[3]);
+            if (argc > 4)
+                outlierRatio = std::stod(argv[4]);
+        }
+    }
+
+    std::cout << "minNormalDiff: " << minNormalDiff << std::endl;
+    std::cout << "maxDist: " << maxDist << std::endl;
+    std::cout << "outlierRatio: " << outlierRatio << std::endl;
 
     static constexpr int nrNeighbors = 75;
     const geometry::KDTreeSearchParam &search_param = geometry::KDTreeSearchParamKNN(nrNeighbors);
@@ -104,6 +134,10 @@ int main(int argc, char *argv[]) {
 
     t1 = std::chrono::high_resolution_clock::now();
     PlaneDetector rspd(cloud_ptr, neighbors);
+    rspd.minNormalDiff(std::cos(GeometryUtils::deg2rad(minNormalDiff))); // 60.f
+    rspd.maxDist(std::cos(GeometryUtils::deg2rad(maxDist)));  // 75.f
+    rspd.outlierRatio(outlierRatio); // 0.75f
+    
     std::set<Plane*> planes = rspd.detect();
     const double t_rspd = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - t1).count();
     std::cout << "rspd detect: " << t_rspd << " seconds" << std::endl;
@@ -129,8 +163,8 @@ int main(int argc, char *argv[]) {
 
     // create a vector of geometries to visualize, starting with input point cloud
     std::vector<std::shared_ptr<const geometry::Geometry>> geometries;
-    geometries.reserve(1 + planes.size());
-    geometries.push_back(cloud_ptr);
+    geometries.reserve(planes.size());
+    // geometries.push_back(cloud_ptr);
 
     // Colors (default MATLAB colors)
     std::vector<Eigen::Vector3d> colors;
